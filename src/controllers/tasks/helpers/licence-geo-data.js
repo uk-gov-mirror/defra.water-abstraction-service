@@ -50,6 +50,23 @@ function getLicencePoints (currentVersion) {
   return points;
 }
 
+/**
+ * A function to format region data in the licence for export
+ * to CRM metadata
+ * @param {Object} licenceData - full licence data JSON
+ * @return {Object} - region data
+ */
+function getRegionData (licenceData) {
+  return {
+    regionCode: parseInt(licenceData.FGAC_REGION_CODE, 10),
+    camsCode: licenceData.AREP_CAMS_CODE,
+    leapCode: licenceData.AREP_LEAP_CODE,
+    areaCode: licenceData.AREP_AREA_CODE,
+    sucCode: licenceData.AREP_SUC_CODE
+  };
+}
+
 module.exports = {
-  getLicencePoints
+  getLicencePoints,
+  getRegionData
 };

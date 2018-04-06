@@ -126,7 +126,7 @@ async function exportLicence (licence_ref, regime_id, licence_type_id, data) {
   };
 }
 
-const {getLicencePoints} = require('./helpers/point-data');
+const {getLicencePoints, getRegionData} = require('./helpers/licence-geo-data');
 
 function buildCRMPacket (licence_data, licence_ref, licence_id) {
   var crmData = {};
@@ -134,8 +134,9 @@ function buildCRMPacket (licence_data, licence_ref, licence_id) {
   crmData.system_id = 'permit-repo';
   crmData.system_internal_id = licence_id;
   crmData.system_external_id = licence_ref;
+  const licenceData = JSON.parse(licence_data.licence_data_value);
   try {
-    var baseLicence = JSON.parse(licence_data.licence_data_value).data.current_version;
+    var baseLicence = licenceData.data.current_version;
     var party = baseLicence.party;
     var address = baseLicence.address;
     var expires = baseLicence.licence.version_end_date;
@@ -158,7 +159,8 @@ function buildCRMPacket (licence_data, licence_ref, licence_id) {
       Country: address.COUNTRY,
       Expires: expires,
       Modified: modified,
-      Points: getLicencePoints(baseLicence)
+      Points: getLicencePoints(baseLicence),
+      Region: getRegionData(licenceData)
     };
 
     console.log(metadata);

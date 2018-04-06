@@ -2,7 +2,7 @@
   "apps": [
     {
       "watch": true,
-      "name": "water-api",
+      "name": "water-service",
       "ignore_watch": [
         "node_modules",
         "src/lib/temp"
