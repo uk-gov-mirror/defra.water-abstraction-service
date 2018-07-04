@@ -102,15 +102,15 @@ const getVersionsJson = async (licenceRow) => {
 const getLicenceJson = async (licenceNumber) => {
   try {
     var data = await getMain(licenceNumber);
-    for (var licenceRow in data) {
-      var thisLicenceRow = data[licenceRow];
-      thisLicenceRow.data = {};
-      thisLicenceRow.data.versions = await getVersionsJson(thisLicenceRow);
-      thisLicenceRow.data.current_version = await getCurrentVersionJson(thisLicenceRow);
-      thisLicenceRow.data.cams = await getCams(thisLicenceRow.CAMS_CODE, thisLicenceRow.FGAC_REGION_CODE);
-      thisLicenceRow.data.roles = await getRoles(thisLicenceRow.ID, thisLicenceRow.FGAC_REGION_CODE);
-      thisLicenceRow.data.purposes = await getPurposesJson(thisLicenceRow);
-      return thisLicenceRow;
+    for (let licenceRow of data) {
+      licenceRow.vmlVersion = 2;
+      licenceRow.data = {};
+      licenceRow.data.versions = await getVersionsJson(licenceRow);
+      licenceRow.data.current_version = await getCurrentVersionJson(licenceRow);
+      licenceRow.data.cams = await getCams(licenceRow.CAMS_CODE, licenceRow.FGAC_REGION_CODE);
+      licenceRow.data.roles = await getRoles(licenceRow.ID, licenceRow.FGAC_REGION_CODE);
+      licenceRow.data.purposes = await getPurposesJson(licenceRow);
+      return licenceRow;
     }
   } catch (e) {
     console.error(e);
