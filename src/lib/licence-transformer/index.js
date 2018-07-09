@@ -5,24 +5,22 @@
  * @module lib/licence-transformer/index
  */
 const NALDTransformer = require('./nald-transformer');
-const CSVTransformer = require('./csv-transformer');
 const FORMAT_NALD = 'NALD';
 const FORMAT_CSV = 'CSV';
 
 class UnsupportedLicenceFormatError extends Error {
-  constructor(message) {
+  constructor (message) {
     super(message);
     this.name = 'UnsupportedLicenceFormatError';
   }
 };
 
 class LicenceTransformer {
-
   /**
    * Constructor
    * @param {Object} data - licence data
    */
-  async load(data) {
+  async load (data) {
     const format = this.guessFormat(data);
 
     switch (format) {
@@ -45,25 +43,18 @@ class LicenceTransformer {
    * Export data
    * @return {Object}
    */
-  export() {
+  export () {
     return this.transformer.export();
   }
-
 
   /**
    * Guess the data format from the supplied data
    * @param {Object}
    * @return {String} data format
    */
-  guessFormat(data) {
-    if('vmlVersion' in data && data.vmlVersion === 2) {
-      return FORMAT_NALD;
-    }
-    return FORMAT_CSV;
+  guessFormat (data) {
+    return FORMAT_NALD;
   }
-
-
 }
-
 
 module.exports = LicenceTransformer;
