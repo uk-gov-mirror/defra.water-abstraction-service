@@ -85,11 +85,40 @@ const mapUsability = (u) => {
   return options[u];
 };
 
+/**
+ * Calculates the returns cycles from the supplied
+ * @param {Object} row - row of data from return format/version tables
+ * @return {Array} a list of periods
+ */
+const calculateReturnsCycles = (row) => {
+  const dateFormat = 'DD/MM/YYYY';
+  const effectiveStartDate = moment(row.EFF_ST_DATE, dateFormat);
+  const effectiveEndDate = row.EFF_END_DATE === 'NULL' ? null : moment(row.EFF_END_DATE, dateFormat);
+  const finalYear = effectiveEndDate ? effectiveEndDate.year() : moment().year();
+
+  const cycles = [];
+  for (let year = effectiveStartDate.year(); year <= finalYear; year++) {
+    const endYear = row.ABS_PERIOD_END_MONTH >= row.ABS_PERIOD_ST_MONTH ? year : year + 1;
+    const cycleStart = moment().year(year).month(row.ABS_PERIOD_ST_MONTH - 1).date(row.ABS_PERIOD_ST_DAY);
+    const cycleEnd = moment().year(endYear).month(row.ABS_PERIOD_END_MONTH - 1).date(row.ABS_PERIOD_END_DAY);
+
+    if (cycleStart.isSameOrAfter(effectiveStartDate) && (!effectiveEndDate || cycleEnd.isSameOrBefore(effectiveEndDate))) {
+      cycles.push({
+        startDate: cycleStart.format('YYYY-MM-DD'),
+        endDate: cycleEnd.format('YYYY-MM-DD')
+      });
+    }
+  }
+
+  return cycles;
+};
+
 module.exports = {
   convertNullStrings,
   mapFrequency,
   mapPeriod,
   getStartDate,
   mapUnit,
-  mapUsability
+  mapUsability,
+  calculateReturnsCycles
 };

@@ -2,14 +2,15 @@ const moment = require('moment');
 const { dbQuery } = require('./db');
 
 /**
- * Gets form logs for specified licence number
+ * Gets formats for specified licence number
  * @param {String} licenceNumber
  * @return {Promise} resolves with array of DB records
  */
 const getFormats = (licenceNumber) => {
   const query = `
-  SELECT f.* FROM "import"."NALD_ABS_LICENCES" l
+  SELECT f.*, v.* FROM "import"."NALD_ABS_LICENCES" l
   LEFT JOIN "import"."NALD_RET_FORMATS" f ON l."ID"=f."ARVN_AABL_ID" AND l."FGAC_REGION_CODE"=f."FGAC_REGION_CODE"
+  LEFT JOIN "import"."NALD_RET_VERSIONS" v ON v."FGAC_REGION_CODE"=f."FGAC_REGION_CODE" AND v."AABL_ID"=f."ARVN_AABL_ID"
   WHERE l."LIC_NO"=$1`;
   const params = [licenceNumber];
   return dbQuery(query, params);
@@ -73,14 +74,19 @@ const getLogs = (formatId, regionCode) => {
  * @param {String} dateFrom - e.g. DD/MM/YYYY
  * @return {Promise} resolves with array of DB records
  */
-const getLines = (formatId, regionCode, dateFrom) => {
-  const m = moment(dateFrom, 'DD/MM/YYYY');
-  const from = m.format('YYYYMMDD') + '000000';
-  const query = `
-  SELECT l.* FROM "import"."NALD_RET_LINES" l
-  WHERE l."ARFL_ARTY_ID"=$1 AND l."FGAC_REGION_CODE"=$2 AND "ARFL_DATE_FROM"=$3`;
+const getLines = (formatId, regionCode, dateFrom, dateTo) => {
+  // const m = moment(dateFrom, 'DD/MM/YYYY');
+  // const from = m.format('YYYYMMDD') + '000000';
+  // const to = m.format('')
+  // const query = `
+
+  const from = moment(dateFrom, 'YYYY-MM-DD').format('YYYYMMDD') + '000000';
+  const to = moment(dateTo, 'YYYY-MM-DD').format('YYYYMMDD') + '000000';
+
+  const query = `SELECT l.* FROM "import"."NALD_RET_LINES" l
+  WHERE l."ARFL_ARTY_ID"=$1 AND l."FGAC_REGION_CODE"=$2 AND "ARFL_DATE_FROM">=$3 AND "RET_DATE"<=$4`;
   // ORDER BY "RET_DATE"`;
-  const params = [formatId, regionCode, from];
+  const params = [formatId, regionCode, from, to];
 
   return dbQuery(query, params);
 };

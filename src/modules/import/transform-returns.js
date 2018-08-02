@@ -1,4 +1,4 @@
-const { dateToIsoString, returnsDateToIso } = require('./lib/date-helpers');
+const { returnsDateToIso } = require('./lib/date-helpers');
 
 const { formatAbstractionPoint } = require('../../lib/licence-transformer/nald-helpers');
 
@@ -6,7 +6,7 @@ const {
   getFormats,
   getFormatPurposes,
   getFormatPoints,
-  getLogs,
+  // getLogs,
   getLines
 } = require('./lib/nald-returns-queries.js');
 
@@ -16,21 +16,26 @@ const {
   mapPeriod,
   getStartDate,
   mapUnit,
-  mapUsability
+  mapUsability,
+  calculateReturnsCycles
 } = require('./lib/transform-returns-helpers.js');
 
 const buildReturnsPacket = async (licenceNumber) => {
   const formats = await getFormats(licenceNumber);
 
   for (let format of formats) {
-    let logs = await getLogs(format.ID, format.FGAC_REGION_CODE);
-    for (let log of logs) {
-      log.lines = await getLines(format.ID, format.FGAC_REGION_CODE, log.DATE_FROM);
+    const cycles = calculateReturnsCycles(format);
+
+    format.cycles = [];
+
+    for (let cycle of cycles) {
+      const lines = await getLines(format.ID, format.FGAC_REGION_CODE, cycle.startDate, cycle.endDate);
+      format.cycles.push({ cycle, lines });
     }
 
     format.purposes = await getFormatPurposes(format.ID, format.FGAC_REGION_CODE);
     format.points = await getFormatPoints(format.ID, format.FGAC_REGION_CODE);
-    format.logs = logs;
+    // format.logs = logs;
   }
 
   const returnsData = {
@@ -40,9 +45,11 @@ const buildReturnsPacket = async (licenceNumber) => {
   };
 
   for (let format of formats) {
-    for (let log of format.logs) {
-      const startDate = dateToIsoString(log.DATE_FROM);
-      const endDate = dateToIsoString(log.DATE_TO);
+    // console.log('format!');
+    // console.log(calculateReturnsCycles(format));
+
+    for (let cycle of format.cycles) {
+      const { startDate, endDate } = cycle.cycle;
       const logId = `${startDate}:${endDate}`;
       const returnId = `v1:${format.FGAC_REGION_CODE}:${licenceNumber}:${format.ID}:${logId}`;
 
@@ -77,17 +84,18 @@ const buildReturnsPacket = async (licenceNumber) => {
           nald: {
             regionCode: parseInt(format.FGAC_REGION_CODE),
             formatId: parseInt(format.ID),
-            dateFrom: dateToIsoString(log.DATE_FROM),
-            dateTo: dateToIsoString(log.DATE_TO),
-            dateReceived: dateToIsoString(log.RECD_DATE),
+            // dateFrom: dateToIsoString(log.DATE_FROM),
+            // dateTo: dateToIsoString(log.DATE_TO),
+            // dateReceived: dateToIsoString(log.RECD_DATE),
             periodStartDay: format.ABS_PERIOD_ST_DAY,
             periodStartMonth: format.ABS_PERIOD_ST_MONTH,
             periodEndDay: format.ABS_PERIOD_END_DAY,
-            periodEndMonth: format.ABS_PERIOD_END_MONTH,
-            underQuery: log.UNDER_QUERY_FLAG === 'Y'
+            periodEndMonth: format.ABS_PERIOD_END_MONTH
+            // underQuery: log.UNDER_QUERY_FLAG === 'Y'
           }
-        }),
-        received_date: log.RECD_DATE === '' ? null : dateToIsoString(log.RECD_DATE)
+        })
+        // @TODO deal with received date
+        // received_date: log.RECD_DATE === '' ? null : dateToIsoString(log.RECD_DATE)
       };
 
       const versionRow = {
@@ -97,13 +105,15 @@ const buildReturnsPacket = async (licenceNumber) => {
         user_id: 'water-abstraction-service',
         user_type: 'agency',
         metadata: '{}',
-        nil_return: log.lines.length === 0
+        nil_return: false
+        // @TODO deal with nil returns,
+        // nil_return: log.lines.length === 0
       };
 
       returnsData.returns.push(returnRow);
       returnsData.versions.push(versionRow);
 
-      for (let line of log.lines) {
+      for (let line of cycle.lines) {
         const endDate = returnsDateToIso(line.RET_DATE);
         const lineRow = {
           line_id: `${returnId}:${line.RET_DATE}`,
