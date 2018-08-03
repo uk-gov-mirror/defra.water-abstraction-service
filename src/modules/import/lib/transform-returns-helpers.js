@@ -1,5 +1,5 @@
 const moment = require('moment');
-const { mapValues } = require('lodash');
+const { mapValues, sortBy } = require('lodash');
 
 /**
  * Converts 'null' strings to real null in supplied object
@@ -93,7 +93,7 @@ const mapUsability = (u) => {
 const calculateReturnsCycles = (row) => {
   const dateFormat = 'DD/MM/YYYY';
   const effectiveStartDate = moment(row.EFF_ST_DATE, dateFormat);
-  const effectiveEndDate = row.EFF_END_DATE === 'NULL' ? null : moment(row.EFF_END_DATE, dateFormat);
+  const effectiveEndDate = row.STATUS === 'CURR' ? null : moment(row.EFF_END_DATE, dateFormat);
   const finalYear = effectiveEndDate ? effectiveEndDate.year() : moment().year();
 
   const cycles = [];
@@ -113,6 +113,41 @@ const calculateReturnsCycles = (row) => {
   return cycles;
 };
 
+/**
+ * Reduces log info to a single value.
+ * If any log has the 'under query' flag set, the flag is true in the output.
+ * If any log does not have the 'received date' set, the received date is null in the output
+ * Otherwise, the last received date is used
+ * @param {Array} array of form log data
+ * @return {Object}
+ */
+const getLogInfo = (logs) => {
+  const underQuery = logs.map(row => row.UNDER_QUERY_FLAG).includes('Y');
+
+  const dateStrings = logs.map(row => row.RECD_DATE);
+
+  if (dateStrings.includes('null') || logs.length === 0) {
+    return {
+      underQuery,
+      receivedDate: null
+    };
+  }
+
+  // Convert date strings to moments
+  const dates = dateStrings.map(str => moment(str, 'DD/MM/YYYY'));
+
+  const sortedDates = sortBy(dates, (date) => {
+    return date.unix();
+  });
+
+  const lastDate = sortedDates[sortedDates.length - 1];
+
+  return {
+    underQuery,
+    receivedDate: lastDate.format('YYYY-MM-DD')
+  };
+};
+
 module.exports = {
   convertNullStrings,
   mapFrequency,
@@ -120,5 +155,6 @@ module.exports = {
   getStartDate,
   mapUnit,
   mapUsability,
-  calculateReturnsCycles
+  calculateReturnsCycles,
+  getLogInfo
 };

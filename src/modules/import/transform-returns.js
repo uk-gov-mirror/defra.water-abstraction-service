@@ -6,7 +6,7 @@ const {
   getFormats,
   getFormatPurposes,
   getFormatPoints,
-  // getLogs,
+  getLogs,
   getLines
 } = require('./lib/nald-returns-queries.js');
 
@@ -17,7 +17,8 @@ const {
   getStartDate,
   mapUnit,
   mapUsability,
-  calculateReturnsCycles
+  calculateReturnsCycles,
+  getLogInfo
 } = require('./lib/transform-returns-helpers.js');
 
 const buildReturnsPacket = async (licenceNumber) => {
@@ -28,14 +29,19 @@ const buildReturnsPacket = async (licenceNumber) => {
 
     format.cycles = [];
 
+    console.log(cycles);
+
     for (let cycle of cycles) {
       const lines = await getLines(format.ID, format.FGAC_REGION_CODE, cycle.startDate, cycle.endDate);
-      format.cycles.push({ cycle, lines });
+
+      // Find logs for this period
+      const logs = await getLogs(format.ID, format.FGAC_REGION_CODE, cycle.startDate, cycle.endDate);
+
+      format.cycles.push({ cycle, lines, logs, logInfo: getLogInfo(logs) });
     }
 
     format.purposes = await getFormatPurposes(format.ID, format.FGAC_REGION_CODE);
     format.points = await getFormatPoints(format.ID, format.FGAC_REGION_CODE);
-    // format.logs = logs;
   }
 
   const returnsData = {
@@ -90,12 +96,12 @@ const buildReturnsPacket = async (licenceNumber) => {
             periodStartDay: format.ABS_PERIOD_ST_DAY,
             periodStartMonth: format.ABS_PERIOD_ST_MONTH,
             periodEndDay: format.ABS_PERIOD_END_DAY,
-            periodEndMonth: format.ABS_PERIOD_END_MONTH
-            // underQuery: log.UNDER_QUERY_FLAG === 'Y'
+            periodEndMonth: format.ABS_PERIOD_END_MONTH,
+            underQuery: cycle.logInfo.underQuery
           }
-        })
+        }),
         // @TODO deal with received date
-        // received_date: log.RECD_DATE === '' ? null : dateToIsoString(log.RECD_DATE)
+        received_date: cycle.logInfo.receivedDate
       };
 
       const versionRow = {
@@ -116,7 +122,7 @@ const buildReturnsPacket = async (licenceNumber) => {
       for (let line of cycle.lines) {
         const endDate = returnsDateToIso(line.RET_DATE);
         const lineRow = {
-          line_id: `${returnId}:${line.RET_DATE}`,
+          line_id: `${returnId}:${line.ARFL_DATE_FROM}:${line.RET_DATE}`,
           version_id: returnId,
           substance: 'water',
           quantity: line.RET_QTY === '' ? null : parseFloat(line.RET_QTY),
@@ -132,6 +138,8 @@ const buildReturnsPacket = async (licenceNumber) => {
       }
     }
   }
+
+  // console.log(JSON.stringify(returnsData, null, 2));
 
   return returnsData;
 };
