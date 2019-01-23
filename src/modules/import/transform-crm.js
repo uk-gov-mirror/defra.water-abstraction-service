@@ -127,5 +127,6 @@ function buildCRMPacket (licenceData, licenceRef, licenceId) {
 
 module.exports = {
   buildCRMPacket,
-  buildCRMMetadata
+  buildCRMMetadata,
+  contactsFormatter
 };
