@@ -1,3 +1,4 @@
+const Boom = require('boom');
 const { persistReturnData, patchReturnData } = require('./lib/api-connector');
 const { mapReturnToModel } = require('./lib/model-returns-mapper');
 const { getReturnData } = require('./lib/facade');
@@ -5,9 +6,10 @@ const { eventFactory } = require('./lib/event-factory');
 const { repository: eventRepository } = require('../../controllers/events');
 const s3 = require('../../lib/connectors/s3');
 const Event = require('../../lib/event');
-const logger = require('../../lib/logger');
-const { uploadStatus, getUploadFilename } = require('./lib/returns-upload');
+const { uploadStatus, getUploadFilename, getReturnsS3Object } = require('./lib/returns-upload');
+const { logger } = require('@envage/water-abstraction-helpers');
 const startUploadJob = require('./lib/jobs/start-xml-upload');
+const uploadValidator = require('./lib/returns-upload-validator');
 
 /**
  * A controller method to get a unified view of a return, to avoid handling
@@ -120,9 +122,45 @@ const postUploadXml = async (request, h) => {
   }
 };
 
+/**
+ * Allows the user to review their submitted return prior to submitting it
+ * @param {String} request.params.eventId - the upload event ID
+ * @param {String} request.payload.companyId - the company CRM entity ID
+ * @param {String} request.payload.userName - email address of current user
+ */
+const postUploadPreview = async (request, h) => {
+  const { eventId } = request.params;
+  const { companyId } = request.payload;
+
+  try {
+    // Load event - 404 if not found
+    const evt = await Event.load(eventId);
+    if (!evt) {
+      throw Boom.notFound(`Return upload event not found`, { eventId });
+    }
+
+    // Load JSON from S3 and validate
+    const response = await getReturnsS3Object(eventId, 'json');
+    const returns = JSON.parse(response.Body.toString());
+    const result = await uploadValidator.validate(returns, companyId);
+    return {
+      data: result,
+      error: null
+    };
+  } catch (error) {
+    logger.error('Return upload preview failed', error, {
+      eventId,
+      companyId
+    });
+
+    throw error;
+  }
+};
+
 module.exports = {
   getReturn,
   postReturn,
   patchReturnHeader,
-  postUploadXml
+  postUploadXml,
+  postUploadPreview
 };

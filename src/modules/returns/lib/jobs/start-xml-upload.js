@@ -2,7 +2,7 @@ const messageQueue = require('../../../../lib/message-queue');
 const JOB_NAME = 'returns-upload';
 const Event = require('../../../../lib/event');
 const { uploadStatus } = require('../returns-upload');
-const logger = require('../../../../lib/logger');
+const { logger } = require('@envage/water-abstraction-helpers');
 const returnsUpload = require('../../lib/returns-upload');
 
 /**
@@ -37,9 +37,7 @@ const handleReturnsUploadStart = async job => {
 
     return job.done();
   } catch (error) {
-    error.params = { job };
-    error.context = { component: 'modules/returns/lib/jobs/start-xml-upload' };
-    logger.error('Returns upload failure', error);
+    logger.error('Returns upload failure', error, { job });
 
     await evt
       .setStatus(uploadStatus.ERROR)
