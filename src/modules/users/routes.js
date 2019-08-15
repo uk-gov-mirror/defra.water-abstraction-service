@@ -8,6 +8,17 @@ const getEmailRegex = () => {
     : /\.gov\.uk$/;
 };
 
+const VALID_PERMISSIONS_KEY = Joi.string().valid([
+  'basic',
+  'billing_and_data',
+  'environment_officer',
+  'nps',
+  'nps_ar_user',
+  'nps_ar_approver',
+  'psc',
+  'wirs'
+]).required();
+
 module.exports = {
   getStatus: {
     method: 'GET',
@@ -31,16 +42,22 @@ module.exports = {
         payload: {
           callingUserId: Joi.number().integer().required(),
           newUserEmail: Joi.string().email().lowercase().trim().regex(getEmailRegex()),
-          permissionsKey: Joi.string().valid([
-            'basic',
-            'billing_and_data',
-            'environment_officer',
-            'nps',
-            'nps_ar_user',
-            'nps_ar_approver',
-            'psc',
-            'wirs'
-          ]).required()
+          permissionsKey: VALID_PERMISSIONS_KEY
+        }
+      }
+    }
+  },
+
+  patchUserInternal: {
+    method: 'PATCH',
+    path: '/water/1.0/user/internal',
+    handler: controller.patchUserInternal,
+    options: {
+      validate: {
+        payload: {
+          callingUserId: Joi.number().integer().required(),
+          userId: Joi.number().integer().required(),
+          permissionsKey: VALID_PERMISSIONS_KEY
         }
       }
     }

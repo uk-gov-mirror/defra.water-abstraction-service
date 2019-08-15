@@ -1,5 +1,4 @@
 const idmConnector = require('../../lib/connectors/idm');
-const { throwIfError } = require('@envage/hapi-pg-rest-api');
 const Boom = require('@hapi/boom');
 const { get } = require('lodash');
 const crmEntitiesConnector = require('../../lib/connectors/crm/entities');
@@ -107,11 +106,24 @@ const internalUserExists = async email => {
 
 const createNewUserEvent = (callingUser, newUser) => {
   const auditEvent = event.create({
-    type: 'new-user',
-    subtype: 'internal',
+    type: 'user',
+    subtype: 'create-internal',
     issuer: callingUser,
     metadata: {
       user: newUser
+    }
+  });
+
+  return event.save(auditEvent);
+};
+
+const updatePermissionsEvent = (issuer, user) => {
+  const auditEvent = event.create({
+    type: 'user',
+    subtype: 'update-permissions',
+    issuer,
+    metadata: {
+      user
     }
   });
 
@@ -143,8 +155,7 @@ const setIdmUserRoles = async (userId, permissionsKey) => {
 
 const postUserInternal = async (request, h) => {
   const { callingUserId, newUserEmail, permissionsKey } = request.payload;
-  const { data: user, error } = await idmConnector.usersClient.findOne(callingUserId);
-  throwIfError(error);
+  const user = await idmConnector.usersClient.findOneById(callingUserId);
 
   if (!userCanManageAccounts(user)) {
     return Boom.forbidden('Calling user not authorised to manage accounts');
@@ -183,5 +194,33 @@ const postUserInternal = async (request, h) => {
   }
 };
 
+const patchUserInternal = async (request, h) => {
+  const { callingUserId, userId, permissionsKey } = request.payload;
+  const callingUser = await idmConnector.usersClient.findOneById(callingUserId);
+
+  if (!userCanManageAccounts(callingUser)) {
+    return Boom.forbidden('Calling user not authorised to manage accounts');
+  }
+
+  const user = await idmConnector.usersClient.findOneById(userId);
+
+  try {
+    // set the users roles/groups
+    const userWithNewRoles = await setIdmUserRoles(userId, permissionsKey);
+
+    // write a message to the event log
+    await updatePermissionsEvent(callingUser.user_name, user.user_name);
+
+    // respond with the user object as part of the response
+    return h.response(userWithNewRoles).code(201);
+  } catch (err) {
+    logger.error('Failed to update internal user permissions', err, {
+      callingUserId, userId, permissionsKey
+    });
+    throw err;
+  }
+};
+
 exports.getStatus = getStatus;
 exports.postUserInternal = postUserInternal;
+exports.patchUserInternal = patchUserInternal;
