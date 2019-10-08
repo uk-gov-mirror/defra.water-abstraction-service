@@ -6,9 +6,22 @@ const crmMappers = require('./lib/crm-mappers');
 const dateHelpers = require('./lib/date-helpers');
 const { camelCaseKeys } = require('./lib/mappers');
 const repository = require('../../lib/connectors/repository');
-const { get, flatMap } = require('lodash');
+const { get, flatMap, groupBy, cloneDeep, each } = require('lodash');
 
 const DATE_FORMAT = 'YYYY-MM-DD';
+
+const getLicenceAgreements = async licenceNumber => [
+  {
+    startDate: '2017-01-01',
+    endDate: null,
+    code: 127
+  },
+  {
+    startDate: '2019-09-01',
+    endDate: '2019-12-31',
+    code: 130
+  }
+];
 
 // Get documents for licence number
 const getCRMDocuments = async licenceRef => [{
@@ -172,12 +185,13 @@ const augmentElementWithBillingPeriod = (chargeVersion, chargeElement, startDate
  */
 const chargeElementProcessor = (chargeVersion, chargeElements) => chargeElements.reduce((acc, row) => {
   if (isTimeLimited(row)) {
-    const intersection = moment.range(chargeVersion.startDate, chargeVersion.endDate).intersect(
-      moment.range(row.timeLimitedStartDate, row.timeLimitedEndDate)
-    );
+    const rangeA = moment.range(chargeVersion.startDate, chargeVersion.endDate);
+    const rangeB = moment.range(row.timeLimitedStartDate, row.timeLimitedEndDate);
+
+    const intersection = rangeA.intersect(rangeB);
     if (intersection) {
-      const startDate = intersection.format(DATE_FORMAT);
-      const endDate = intersection.format(DATE_FORMAT);
+      const startDate = intersection.start.format(DATE_FORMAT);
+      const endDate = intersection.end.format(DATE_FORMAT);
       acc.push(augmentElementWithBillingPeriod(chargeVersion, row, startDate, endDate));
     }
   } else {
@@ -186,6 +200,57 @@ const chargeElementProcessor = (chargeVersion, chargeElements) => chargeElements
   }
   return acc;
 }, []);
+
+/**
+ * Processes licence-level agreements that affect charging
+ * @param {Array} data
+ * @param {String} licenceNumber
+ * @return {Promise<Array>} data - split by charge agreement changes
+ */
+const processAgreements = async (data, licenceNumber) => {
+  let updated = cloneDeep(data);
+  const agreements = await getLicenceAgreements(licenceNumber);
+  const grouped = groupBy(agreements, row => row.code);
+
+  each(grouped, (agreements, key) => {
+    const propertyKey = `section${key}`;
+    const history = dateHelpers.mergeHistory(agreements);
+    const arr = updated
+      .map(row => helpers.charging.dateRangeSplitter(row, history, propertyKey));
+    updated = flatMap(arr).map(applyEffectiveDates);
+  });
+
+  return updated;
+};
+
+/**
+ * Processes charging elements and augments charge data array
+ * @param {Array} data
+ * @param {String} chargeVersionId
+ */
+const processChargingElements = async (data, chargeVersionId) => {
+  const chargeElements = await getChargeElements(chargeVersionId);
+  return data.map(row => ({
+    ...row,
+    chargeElements: chargeElementProcessor(row, chargeElements)
+  }));
+};
+
+const processLicenceHolders = (data, docs) => {
+  const licenceHolders = dateHelpers.mergeHistory(
+    crmMappers.getLicenceHolderRoles(docs), isSameLicenceHolder
+  );
+  return helpers.charging
+    .dateRangeSplitter(data, licenceHolders, 'licenceHolder')
+    .map(applyEffectiveDates);
+};
+
+const processInvoiceAccounts = (data, docs) => {
+  const billing = dateHelpers.mergeHistory(crmMappers.getBillingRoles(docs));
+  return flatMap(data.map(row => helpers.charging
+    .dateRangeSplitter(row, billing, 'invoiceAccount')
+    .map(applyEffectiveDates)));
+};
 
 /**
  * @TODO handle two-part billing summer/winter
@@ -200,8 +265,7 @@ const chargeProcessor = async (year, chargeVersionId, isTwoPart = false, isSumme
   const financialYear = dateHelpers.getFinancialYearRange(year);
 
   // Load charge version data
-  const tasks = [ getChargeVersion(chargeVersionId), getChargeElements(chargeVersionId) ];
-  const [ chargeVersion, chargeElements ] = await Promise.all(tasks);
+  const chargeVersion = await getChargeVersion(chargeVersionId);
 
   // Constrain charge version dates by financial year
   const dateRange = dateHelpers.getSmallestDateRange([
@@ -212,19 +276,14 @@ const chargeProcessor = async (year, chargeVersionId, isTwoPart = false, isSumme
 
   // Load CRM docs
   const docs = await getCRMDocuments();
-  const billing = dateHelpers.mergeHistory(crmMappers.getBillingRoles(docs));
-  const licenceHolders = dateHelpers.mergeHistory(crmMappers.getLicenceHolderRoles(docs), isSameLicenceHolder);
 
-  data = helpers.charging.dateRangeSplitter(data, licenceHolders, 'licenceHolder').map(applyEffectiveDates);
-  data = flatMap(data.map(row => helpers.charging.dateRangeSplitter(row, billing, 'invoiceAccount').map(applyEffectiveDates)));
+  // Process and split into date ranges
+  data = processLicenceHolders(data, docs);
+  data = processInvoiceAccounts(data, docs);
+  data = await processAgreements(data, chargeVersion.licenceRef);
+  data = await processChargingElements(data, chargeVersionId);
 
-  // @TODO - split by licence-level agreements - TPT/canal
-
-  // Augment rows with charge elements
-  return data.map(row => ({
-    ...row,
-    chargeElements: chargeElementProcessor(row, chargeElements)
-  }));
+  return data;
 };
 
 /**

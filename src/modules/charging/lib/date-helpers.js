@@ -70,6 +70,7 @@ const equalityTest = (a, b) => {
 };
 
 /**
+ * @TODO replace with water-abstraction-helpers function once merged
  * Given an array of objects sorted by date, de-duplicates them where adjacent array items
  * are identical except for their date ranges, extending the endDate property of
  * earlier element to that of the later element
