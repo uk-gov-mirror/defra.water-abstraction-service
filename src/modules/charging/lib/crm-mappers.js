@@ -1,6 +1,6 @@
 const { flatMap } = require('lodash');
 
-const getRolesOfType = (doc, role) => doc.documentRoles.filter(docRole => docRole.role === role);
+const getRolesOfType = (doc, role) => doc.documentRoles.filter(docRole => docRole.roleName === role);
 
 const getRoles = (docs, role) => flatMap(docs.map(doc => getRolesOfType(doc, role)));
 
