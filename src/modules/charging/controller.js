@@ -2,6 +2,7 @@ const MomentRange = require('moment-range');
 const moment = MomentRange.extendMoment(require('moment'));
 
 const helpers = require('@envage/water-abstraction-helpers');
+const crm = require('../../lib/connectors/crm-v2/documents');
 const crmMappers = require('./lib/crm-mappers');
 const dateHelpers = require('./lib/date-helpers');
 const { camelCaseKeys } = require('./lib/mappers');
@@ -10,124 +11,51 @@ const { get, flatMap, groupBy, cloneDeep, each } = require('lodash');
 
 const DATE_FORMAT = 'YYYY-MM-DD';
 
+/**
+ * @todo handle licence-level agreemnts
+ * @param {String} licenceNumber
+ * @return {Promise<Array>}
+ */
 const getLicenceAgreements = async licenceNumber => [
-  {
-    startDate: '2017-01-01',
-    endDate: null,
-    code: 127
-  },
-  {
-    startDate: '2019-09-01',
-    endDate: '2019-12-31',
-    code: 130
-  }
+
 ];
 
-// Get documents for licence number
-const getCRMDocuments = async licenceRef => [{
-  documentId: 'document_1',
-  regime: 'water',
-  documentType: 'abstraction_licence',
-  versionNumber: 101,
-  documentRef: '01/123',
-  status: 'superseded',
-  startDate: '2012-08-13',
-  endDate: '2019-05-12',
-  documentRoles: [
-    {
-      startDate: '2012-08-13',
-      endDate: null,
-      role: 'licenceHolder',
-      company: {
-        companyId: 'company_1',
-        name: 'Daisy farms'
-      },
-      contact: {
-        contactId: 'contact_1',
-        salutation: 'Mr',
-        firstName: 'John',
-        lastName: 'Doe'
-      },
-      address: {
-        addressId: 'address_1',
-        address1: 'Daisy cottage',
-        address2: 'Buttercup lane',
-        town: 'Testington',
-        county: 'Testingshire',
-        postcode: 'TT1 1TT',
-        country: 'England'
-      }
-    },
-    {
-      startDate: '2012-08-13',
-      endDate: null,
-      role: 'billing',
-      company: {
-        companyId: 'company_1'
-      },
-      invoiceAccount: {
-        invoiceAccountId: 'invoice_account_1',
-        iasNumber: '01234',
-        company: {
-          companyId: 'company_1',
-          name: 'Daisy farms'
-        }
-      }
-    }]
-}, {
-  documentId: 'document_2',
-  regime: 'water',
-  documentType: 'abstraction_licence',
-  versionNumber: 102,
-  documentRef: '01/123',
-  status: 'current',
-  startDate: '2019-05-03',
-  documentRoles: [
-    {
-      startDate: '2019-05-03',
-      endDate: null,
-      role: 'licenceHolder',
-      company: {
-        companyId: 'company_1'
-      },
-      contact: {
-        contactId: 'contact_1',
-        salutation: 'Mr',
-        firstName: 'John',
-        lastName: 'Doe'
-      },
-      address: {
-        addressId: 'address_1',
-        address1: 'Daisy cottage',
-        address2: 'Buttercup lane',
-        town: 'Testington',
-        county: 'Testingshire',
-        postcode: 'TT1 1TT',
-        country: 'England'
-      }
-    },
-    {
-      startDate: '2019-05-03',
-      endDate: null,
-      role: 'billing',
-      company: {
-        companyId: 'company_1'
-      },
-      invoiceAccount: {
-        invoiceAccountId: 'invoice_account_1',
-        iasNumber: '01234',
-        company: {
-          companyId: 'company_1',
-          name: 'Daisy farms'
-        }
-      }
-    }]
-}];
+/**
+ * Gets an array of document objects from the CRM
+ * @todo This would be more efficient if it filtered
+ *  the documents to ensure they are only cover the
+ *  required date range
+ * @param {String} licenceNumber
+ * @return {Promise<Array>} a list of document objects
+ */
+const getCRMDocuments = async licenceNumber => {
+  const documents = await crm.getDocuments(licenceNumber);
+  const tasks = documents.map(doc => crm.getDocument(doc.documentId));
+  return Promise.all(tasks);
+};
 
+/**
+ * Checks whether the two supplied CRM document roles are
+ * for the same combination of company and contact
+ * Address changes are ignored
+ * @param {Object} roleA - CRM document role
+ * @param {Object} roleB - CRM document role
+ * @return {Boolean}
+ */
 const isSameLicenceHolder = (roleA, roleB) =>
   get(roleA, 'company.companyId') === get(roleB, 'company.companyId') &&
-    get(roleA, 'contact.contactId') === get(roleB, 'contact.contactId');
+  get(roleA, 'contact.contactId') === get(roleB, 'contact.contactId');
 
+/**
+ * The date range splitter function from water-abstraction-helpers
+ * writes new dates to the supplied objects as
+ * effectiveStartDate and effectiveEndDate
+ * This function moves these to startDate and endDate so it can
+ * be run through the date splitter again.
+ * The original start/end dates are moved to originalStartDate and originalEndDate
+ * @param {Object} obj
+ * @return {Object}
+ */
 const applyEffectiveDates = obj => ({
   ...obj,
   startDate: obj.effectiveStartDate,
@@ -156,9 +84,21 @@ const getChargeElements = async chargeVersionId => {
   return data.map(camelCaseKeys);
 };
 
+/**
+ * Predicate to check whether the supplied charge element contains a time-limited
+ * date range
+ * @param {Object} chargeElement
+ * @return {Boolean} true if the element is time limited
+ */
 const isTimeLimited = chargeElement =>
   !(chargeElement.timeLimitedStartDate === null && chargeElement.timeLimitedEndDate === null);
 
+/**
+ * Maps the abstraction period from a charge element into a shape
+ * expected by the getBillableDays function in water-abstraction-helpers
+ * @param {Object} chargeElement
+ * @return {Object} abstraction period
+ */
 const getAbstractionPeriod = chargeElement => ({
   startDay: chargeElement.abstractionPeriodStartDay,
   startMonth: chargeElement.abstractionPeriodStartMonth,
@@ -166,6 +106,23 @@ const getAbstractionPeriod = chargeElement => ({
   endMonth: chargeElement.abstractionPeriodEndMonth
 });
 
+/**
+ * Augments a charge element with information specific to this charge version/financial year etc.
+ *
+ * The start and end date are those for which this element is in effect for, ignoring the abs period
+ *
+ * The totalDays is the number of days this charge element would be billed for had it been in effect
+ * for the full financial year, taking into account the abs period.
+ *
+ * The billableDays is the number of days this charge element should be billed for taking into account
+ * the abs period and the limits of the start/end date range
+ *
+ * @param {Object} chargeVersion
+ * @param {Object} chargeElement
+ * @param {String} startDate
+ * @param {String} endDate
+ * @return {Object} augmented charge element
+ */
 const augmentElementWithBillingPeriod = (chargeVersion, chargeElement, startDate, endDate) => ({
   ...chargeElement,
   startDate,
@@ -275,7 +232,7 @@ const chargeProcessor = async (year, chargeVersionId, isTwoPart = false, isSumme
   let data = { chargeVersion, financialYear, ...dateRange, isTwoPart, isSummer };
 
   // Load CRM docs
-  const docs = await getCRMDocuments();
+  const docs = await getCRMDocuments(chargeVersion.licenceRef);
 
   // Process and split into date ranges
   data = processLicenceHolders(data, docs);
