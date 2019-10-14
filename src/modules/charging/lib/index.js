@@ -9,6 +9,7 @@ const crmMappers = require('./crm-mappers');
 const dateHelpers = require('./date-helpers');
 const { camelCaseKeys } = require('./mappers');
 const repository = require('../../../lib/connectors/repository');
+const { ERROR_CHARGE_VERSION_NOT_FOUND } = require('./errors');
 
 const DATE_FORMAT = 'YYYY-MM-DD';
 
@@ -18,7 +19,6 @@ const DATE_FORMAT = 'YYYY-MM-DD';
  * @return {Promise<Array>}
  */
 const getLicenceAgreements = async licenceNumber => [
-
 ];
 
 /**
@@ -59,8 +59,8 @@ const isSameLicenceHolder = (roleA, roleB) =>
  */
 const applyEffectiveDates = obj => ({
   ...obj,
-  startDate: obj.effectiveStartDate,
-  endDate: obj.effectiveEndDate,
+  startDate: moment(obj.effectiveStartDate).format(DATE_FORMAT),
+  endDate: moment(obj.effectiveEndDate).format(DATE_FORMAT),
   originalStartDate: obj.startDate,
   originalEndDate: obj.endDate
 });
@@ -72,6 +72,7 @@ const applyEffectiveDates = obj => ({
  */
 const getChargeVersion = async chargeVersionId => {
   const data = await repository.chargeVersions.findOneById(chargeVersionId);
+  console.log(data);
   return camelCaseKeys(data);
 };
 
@@ -205,6 +206,7 @@ const processLicenceHolders = (data, docs) => {
   const licenceHolders = dateHelpers.mergeHistory(
     crmMappers.getLicenceHolderRoles(docs), isSameLicenceHolder
   );
+  console.log(licenceHolders);
   return helpers.charging
     .dateRangeSplitter(data, licenceHolders, 'licenceHolder')
     .map(applyEffectiveDates);
@@ -238,6 +240,9 @@ const chargeProcessor = async (year, chargeVersionId, isTwoPart = false, isSumme
 
   // Load charge version data
   const chargeVersion = await getChargeVersion(chargeVersionId);
+  if (!chargeVersion) {
+    return { error: ERROR_CHARGE_VERSION_NOT_FOUND, data: null };
+  }
 
   // Constrain charge version dates by financial year
   const dateRange = dateHelpers.getSmallestDateRange([
@@ -255,7 +260,7 @@ const chargeProcessor = async (year, chargeVersionId, isTwoPart = false, isSumme
   data = await processAgreements(data, chargeVersion.licenceRef);
   data = await processChargingElements(data, chargeVersionId);
 
-  return data;
+  return { error: null, data };
 };
 
 exports.chargeProcessor = chargeProcessor;

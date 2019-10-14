@@ -1,9 +1,16 @@
 require('dotenv').config();
+
+const pg = require('pg');
+const moment = require('moment');
 const config = require('../../../config.js');
-const { Pool } = require('pg');
 const { logger } = require('../../logger');
 
-const pool = new Pool(config.pg);
+const DATE_FORMAT = 'YYYY-MM-DD';
+
+// Output date fields in format YYYY-MM-DD
+pg.types.setTypeParser(1082, str => moment(str).format(DATE_FORMAT));
+
+const pool = new pg.Pool(config.pg);
 
 pool.on('acquire', () => {
   const { totalCount, idleCount, waitingCount } = pool;

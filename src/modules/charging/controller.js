@@ -1,4 +1,6 @@
+const Boom = require('@hapi/boom');
 const chargeHelpers = require('./lib');
+const { ERROR_CHARGE_VERSION_NOT_FOUND } = require('./lib/errors.js');
 
 /**
  * - Load charge version data and elements
@@ -11,7 +13,13 @@ const getPreviewCharge = async (request, h) => {
   const chargeVersionId = request.params.chargeVersionId;
   const financialYear = request.query.financialYear;
 
-  return chargeHelpers.chargeProcessor(financialYear, chargeVersionId);
+  const { error, data } = await chargeHelpers.chargeProcessor(financialYear, chargeVersionId);
+
+  if (error === ERROR_CHARGE_VERSION_NOT_FOUND) {
+    throw Boom.notFound(`Charge version ${chargeVersionId}`);
+  }
+
+  return data;
 };
 
 exports.getPreviewCharge = getPreviewCharge;
