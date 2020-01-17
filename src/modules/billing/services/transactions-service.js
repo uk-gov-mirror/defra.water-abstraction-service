@@ -1,17 +1,26 @@
 'use strict';
+
+// Node modules
 const moment = require('moment');
-const { identity, get } = require('lodash');
+const { identity, get, pick } = require('lodash');
 const { titleCase } = require('title-case');
+const sortKeys = require('sort-keys');
+const sha1 = require('sha1');
+
+// Models
 const Batch = require('../../../lib/models/batch');
+const ChargeModuleTransaction = require('../../../lib/models/charge-module-transaction');
 const Transaction = require('../../../lib/models/transaction');
 const DateRange = require('../../../lib/models/date-range');
 
+// Connectors
 const chargeModuleTransactionsConnector = require('../../../lib/connectors/charge-module/transactions');
-const ChargeModuleTransaction = require('../../../lib/models/charge-module-transaction');
+const repos = require('../../../lib/connectors/repository');
+
+// Services
 const agreementsService = require('./agreements-service');
 const chargeElementsService = require('./charge-elements-service');
 const { logger } = require('../../../logger');
-const repos = require('../../../lib/connectors/repository');
 
 const mapTransaction = chargeModuleTransaction => {
   const transaction = new ChargeModuleTransaction(chargeModuleTransaction.id);
@@ -225,7 +234,7 @@ const mapChargeElementToChargeModuleTransaction = chargeElement => ({
  */
 const mapLicenceToChargeElementTransaction = licence => ({
   waterUndertaker: licence.isWaterUndertaker,
-  regionalChargingArea: licence.regionalChargeArea.name, // @TODO
+  regionalChargingArea: licence.regionalChargeArea.name,
   licenceNumber: licence.licenceNumber,
   region: licence.region.code,
   areaCode: licence.historicalArea.code
@@ -263,6 +272,35 @@ const mapModelToChargeModule = (batch, invoice, invoiceLicence, transaction) => 
   };
 };
 
+/**
+ * Gets a transaction hash
+ * Maps service models to Charge Module transaction data that
+ * can be used to generate a charge
+ * @param {Batch} batch
+ * @param {Invoice} invoice
+ * @param {InvoiceLicence} invoiceLicence
+ * @param {Transaction} transaction
+ * @return {String}
+ */
+const getHash = (batch, invoice, invoiceLicence, transaction) => {
+  // Map relevant fields to a flat object
+  const data = {
+    isTwoPartTariffSupplementaryCharge: batch.type === 'two_part_tariff',
+    ...pick(transaction.chargePeriod, ['startDate', 'endDate']),
+    ...pick(transaction, ['billableDays', 'authorisedDays', 'volume', 'isCompensationCharge', 'description']),
+    ...pick(transaction.chargeElement, ['source', 'eiucSource', 'season', 'source', 'loss', 'volume']),
+    isWaterUndertaker: invoiceLicence.licence.isWaterUndertaker,
+    regionalChargeArea: invoiceLicence.licence.regionalChargeArea.name,
+    licenceNumber: invoiceLicence.licence.licenceNumber,
+    regionCode: invoiceLicence.licence.region.code,
+    historicalAreaCode: invoiceLicence.licence.historicalArea.code,
+    invoiceAccountNumber: invoice.invoiceAccount.accountNumber,
+    ...mapAgreementsToChargeModule(transaction)
+  };
+  // Sort keys, and hash a JSON stringified version to create the hash
+  return sha1(JSON.stringify(sortKeys(data)));
+};
+
 exports.getTransactionsForBatch = getTransactionsForBatch;
 exports.getTransactionsForBatchInvoice = getTransactionsForBatchInvoice;
 exports.mapChargeToTransactions = mapChargeToTransactions;
@@ -270,3 +308,4 @@ exports.mapTransactionToDB = mapTransactionToDB;
 exports.mapDBToModel = mapDBToModel;
 exports.saveTransactionToDB = saveTransactionToDB;
 exports.mapModelToChargeModule = mapModelToChargeModule;
+exports.getHash = getHash;

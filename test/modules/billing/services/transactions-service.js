@@ -584,4 +584,20 @@ experiment('modules/billing/services/transactions-service', () => {
       });
     });
   });
+
+  experiment('.getTransactionhash', () => {
+    let batch, invoice, invoiceLicence, transaction, result;
+
+    beforeEach(async () => {
+      batch = createBatch();
+      invoice = createInvoice();
+      invoiceLicence = createInvoiceLicence();
+      transaction = createTransaction();
+      result = transactionsService.getHash(batch, invoice, invoiceLicence, transaction);
+    });
+
+    test('returns a unique hash', async () => {
+      expect(result).to.equal('7f48a77317f5250432dc8f70f24969b6016e0cec');
+    });
+  });
 });
