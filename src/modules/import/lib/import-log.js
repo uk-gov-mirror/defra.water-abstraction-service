@@ -4,6 +4,10 @@
  */
 const { dbQuery } = require('./db');
 
+const STATUS_PENDING = 0;
+const STATUS_IN_PROGRESS = 2;
+const STATUS_COMPLETE = 1;
+
 /**
  * Clears the import log ready for a new batch
  * @return {Promise} resolves when done
@@ -22,7 +26,7 @@ const clearImportLog = () => {
 const createImportLog = async (licenceNumbers = [], filter = false) => {
   const placeholders = licenceNumbers.map((value, i) => `$${i + 1}`);
 
-  let sql = 'INSERT INTO "water"."pending_import" (licence_ref, status, priority) (SELECT "LIC_NO", 0, ( CASE ';
+  let sql = `INSERT INTO "water"."pending_import" (licence_ref, status, priority) (SELECT "LIC_NO", ${STATUS_PENDING}, ( CASE `;
 
   if (licenceNumbers.length) {
     sql += ` WHEN ("LIC_NO" IN (${placeholders})) THEN 10 `;
@@ -47,7 +51,7 @@ const createImportLog = async (licenceNumbers = [], filter = false) => {
  * @param {Number} status - 0 means pending import, 1 means importing/imported
  * @return Promise
  */
-const setImportStatus = async (licenceNumber, message = '', status = 1) => {
+const setImportStatus = async (licenceNumber, message = '', status = STATUS_COMPLETE) => {
   const sql = 'UPDATE water.pending_import SET status=$1, log=$2 WHERE licence_ref=$3';
   await dbQuery(sql, [status, message, licenceNumber]);
 };
@@ -62,14 +66,27 @@ const getNextImport = async () => {
   return rows.length ? rows[0] : null;
 };
 
+const getNextImportBatchQuery = `
+with batch as (
+  select * 
+    from water.pending_import 
+    where status=${STATUS_PENDING}
+    order by priority desc 
+    limit $1
+)
+update water.pending_import i
+set status=${STATUS_IN_PROGRESS} 
+from batch where i.id=batch.id 
+returning i.*
+`;
+
 /**
  * Gets the next licence to import
  * @param {Number} batchSize - the number to import per batch
  * @return {Object} - pending_import row, or null if all complete
  */
 const getNextImportBatch = async (batchSize = 10) => {
-  const sql = 'SELECT * FROM water.pending_import WHERE status=0 ORDER BY priority DESC LIMIT $1';
-  const rows = await dbQuery(sql, [batchSize]);
+  const rows = await dbQuery(getNextImportBatchQuery, [batchSize]);
   return rows;
 };
 

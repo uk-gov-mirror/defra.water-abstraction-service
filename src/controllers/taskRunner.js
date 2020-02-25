@@ -20,8 +20,9 @@ const getNextJob = async () => {
        SELECT *
        FROM "water"."scheduler" job
        WHERE running=0 and next_run <= now()
+       ORDER BY next_run
        LIMIT  1
-       FOR    UPDATE
+       FOR UPDATE
     )
     UPDATE "water"."scheduler" s
     SET running=1, running_on = '${os.hostname()}'
