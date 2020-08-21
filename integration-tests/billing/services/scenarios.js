@@ -64,7 +64,9 @@ const createScenario = async scenario => {
 
   const region = await regions.createTestRegion();
   const licence = await licences.create(region, scenario.licence);
+
   await crm.createDocuments(scenario.licence);
+
   for (const row of scenario.chargeVersions) {
     const crmData = await createCRMChargeVersionData(row);
     const chargeVersion = await chargeVersions.create(region, licence, row.chargeVersion, crmData);

@@ -25,3 +25,39 @@ exports.ce1 = {
   description : 'CE1',
   factorsOverridden : false
 };
+
+exports.ce2 = {
+  abstractionPeriodStartDay : 1,
+  abstractionPeriodStartMonth : 1,
+  abstractionPeriodEndDay : 31,
+  abstractionPeriodEndMonth : 12,
+  season : 'all year',
+  seasonDerived: 'all year',
+  source : 'unsupported',
+  loss : 'low',
+  purposePrimary : 'A',
+  purposeSecondary : 'AGR',
+  purposeUse : 140,
+  authorisedAnnualQuantity : 25,
+  billableAnnualQuantity : 50,
+  description : 'CE2',
+  factorsOverridden : false
+};
+
+exports.ce3 = {
+  abstractionPeriodStartDay : 1,
+  abstractionPeriodStartMonth : 1,
+  abstractionPeriodEndDay : 31,
+  abstractionPeriodEndMonth : 12,
+  season : 'all year',
+  seasonDerived: 'all year',
+  source : 'unsupported',
+  loss : 'low',
+  purposePrimary : 'A',
+  purposeSecondary : 'AGR',
+  purposeUse : 140,
+  authorisedAnnualQuantity : 50,
+  billableAnnualQuantity : 50,
+  description : 'CE3',
+  factorsOverridden : false
+};

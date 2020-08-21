@@ -21,8 +21,11 @@ const createTestRegion = async () => {
     })
       .save();
 
+    console.log(`Created region ${chargeRegionId} in database`);
     cache[chargeRegionId] = region;
   }
+
+  console.log(`Returing region ${chargeRegionId} from cache`);
   return cache[chargeRegionId];
 };
 

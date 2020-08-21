@@ -29,13 +29,18 @@ const getRoleIdFromName = async name => {
  * @return {Promise<Object>} CRM company entity
  */
 const createCompany = async scenarioKey => {
+  console.log(`Create company ${scenarioKey}`);
+
   if (!(scenarioKey in entityCache.companies)) {
     const { addresses, ...companyData } = data.companies[scenarioKey];
     const company = await crmConnector.createCompany(companyData);
+    console.log(`Created company ${scenarioKey} in database, adding to cache`);
+
     entityCache.companies[scenarioKey] = company;
 
     // Create addresses
     for (const companyAddress of addresses) {
+      console.log(`Creating address ${companyAddress.address} for company`);
       const address = await createAddress(companyAddress.address);
 
       const roleId = await getRoleIdFromName(companyAddress.role);
@@ -49,6 +54,7 @@ const createCompany = async scenarioKey => {
     }
   }
 
+  console.log(`Returning company ${scenarioKey} from cache`);
   return entityCache.companies[scenarioKey];
 };
 
@@ -58,9 +64,14 @@ const createCompany = async scenarioKey => {
  * @return {Promise<Object>} CRM company entity
  */
 const createAddress = async scenarioKey => {
+  console.log(`Create address ${scenarioKey}`);
+
   if (!(scenarioKey in entityCache.addresses)) {
     entityCache.addresses[scenarioKey] = await crmConnector.createAddress(data.addresses[scenarioKey]);
+    console.log(`Address ${scenarioKey} added to database`);
   }
+
+  console.log(`Returning address ${scenarioKey} from cache`);
   return entityCache.addresses[scenarioKey];
 };
 
@@ -142,6 +153,8 @@ const createDocumentRole = async (document, role) => {
 const createDocument = async (scenarioKey, versionNumber) => {
   const cacheKey = `${scenarioKey}_${versionNumber}`;
 
+  console.log(`Create document ${cacheKey}`);
+
   if (!(cacheKey in entityCache.documents)) {
     // Create document
     const { roles, ...rest } = data.licences[scenarioKey].documents.find(doc => doc.versionNumber === versionNumber);
@@ -150,13 +163,17 @@ const createDocument = async (scenarioKey, versionNumber) => {
       ...rest
     });
 
+    console.log(`Created document ${cacheKey} in database`);
+
     entityCache.documents[cacheKey] = document;
 
     // Create document roles for document
+    console.log(`Creating roles for document ${cacheKey}`);
     for (const role of roles) {
       await createDocumentRole(document, role);
     }
   }
+  console.log(`Returning document ${cacheKey} from cache`);
   return entityCache.documents[cacheKey];
 };
 

@@ -10,6 +10,7 @@ let cache = {};
  * @param {String} scenarioKey
  */
 const create = async (region, scenarioKey) => {
+  console.log(`Create licence for scenario key ${scenarioKey}`);
   if (!cache[scenarioKey]) {
     const licence = await Licence
       .forge({
@@ -19,8 +20,11 @@ const create = async (region, scenarioKey) => {
       })
       .save();
 
+    console.log(`Created licence for scenario key ${scenarioKey} in database`);
     cache[scenarioKey] = licence;
   }
+
+  console.log('Returning licence from cache');
   return cache[scenarioKey];
 };
 
