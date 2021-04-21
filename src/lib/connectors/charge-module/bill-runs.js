@@ -1,5 +1,6 @@
 'use strict';
 
+const { logger } = require('../../../logger');
 const request = require('./request');
 
 /**
@@ -75,6 +76,10 @@ const generate = CMBillRunId => {
   return request.patch(path);
 };
 
+const rebillInvoice = async (billRunId, invoiceId) => {
+  logger.info(`CM rebilling API for ${billRunId} ${invoiceId} not yet implemented`);
+};
+
 exports.addTransaction = addTransaction;
 exports.approve = approve;
 exports.create = create;
@@ -85,3 +90,4 @@ exports.send = send;
 exports.getInvoiceTransactions = getInvoiceTransactions;
 exports.deleteInvoiceFromBillRun = deleteInvoiceFromBillRun;
 exports.generate = generate;
+exports.rebillInvoice = rebillInvoice;
